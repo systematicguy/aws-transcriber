@@ -1,0 +1,100 @@
+{
+  "jobName": "Recording-uploaded-2024-09-14-22-13-47.m4a",
+  "accountId": "123456789012",
+  "status": "COMPLETED",
+  "results": {
+    "transcripts": [
+      {
+        "transcript": "This is my short recording."
+      }
+    ],
+    "items": [
+      {
+        "id": 0,
+        "type": "pronunciation",
+        "alternatives": [
+          {
+            "confidence": "0.999",
+            "content": "This"
+          }
+        ],
+        "start_time": "0.66",
+        "end_time": "0.889"
+      },
+      {
+        "id": 1,
+        "type": "pronunciation",
+        "alternatives": [
+          {
+            "confidence": "0.999",
+            "content": "is"
+          }
+        ],
+        "start_time": "0.899",
+        "end_time": "1.11"
+      },
+      {
+        "id": 2,
+        "type": "pronunciation",
+        "alternatives": [
+          {
+            "confidence": "0.998",
+            "content": "my"
+          }
+        ],
+        "start_time": "1.12",
+        "end_time": "1.69"
+      },
+      {
+        "id": 3,
+        "type": "pronunciation",
+        "alternatives": [
+          {
+            "confidence": "0.998",
+            "content": "short"
+          }
+        ],
+        "start_time": "1.7",
+        "end_time": "2.609"
+      },
+      {
+        "id": 4,
+        "type": "pronunciation",
+        "alternatives": [
+          {
+            "confidence": "0.998",
+            "content": "recording"
+          }
+        ],
+        "start_time": "2.619",
+        "end_time": "3.63"
+      },
+      {
+        "id": 5,
+        "type": "punctuation",
+        "alternatives": [
+          {
+            "confidence": "0.0",
+            "content": "."
+          }
+        ]
+      }
+    ],
+    "audio_segments": [
+      {
+        "id": 0,
+        "transcript": "This is my short recording.",
+        "start_time": "0.579",
+        "end_time": "3.99",
+        "items": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "TranscriptionJob": {
+    "CreationTime": "2024-09-14T22:14:26.799Z",
+    "LanguageCode": "en-US",
+    "Media": {
+      "MediaFileUri": "s3://transcriber-dev-123456789012-audio-input/Sound_Recordings/Sound_Recordings/akezetes/Recording_2_arvizturotukorfurogep-uploaded2024-09-15-00-14-23.m4a"
+    },
+    "MediaFormat": "m4a",
+    "StartTime": "2024-09-14T22:14:26.819Z",
+    "TranscriptionJobName": "Sound_Recordings__Sound_Recordings__akezetes__Recording_2_arvizturotukorfurogep-uploaded2024-09-15-00-14-23.m4a",
+    "TranscriptionJobStatus": "IN_PROGRESS"
+  },
+  "jobStatus": {
+    "TranscriptionJob": {
+      "CompletionTime": "2024-09-14T22:14:35.104Z",
+      "CreationTime": "2024-09-14T22:14:26.799Z",
+      "LanguageCode": "en-US",
+      "Media": {
+        "MediaFileUri": "s3://transcriber-dev-123456789012-audio-input/Sound_Recordings/Sound_Recordings/akezetes/Recording_2_arvizturotukorfurogep-uploaded2024-09-15-00-14-23.m4a"
+      },
+      "MediaFormat": "mp4",
+      "MediaSampleRateHertz": 48000,
+      "Settings": {
+        "ChannelIdentification": false,
+        "ShowAlternatives": false
+      },
+      "StartTime": "2024-09-14T22:14:26.819Z",
+      "Transcript": {
+        "TranscriptFileUri": "https://s3.eu-central-1.amazonaws.com/transcriber-dev-123456789012-transcription-output/Sound_Recordings/Sound_Recordings/akezetes/Recording_2_arvizturotukorfurogep-uploaded2024-09-15-00-14-23.m4a-transcription.json"
+      },
+      "TranscriptionJobName": "Sound_Recordings__Sound_Recordings__akezetes__Recording_2_arvizturotukorfurogep-uploaded2024-09-15-00-14-23.m4a",
+      "TranscriptionJobStatus": "COMPLETED"
+    }
+  }
+}

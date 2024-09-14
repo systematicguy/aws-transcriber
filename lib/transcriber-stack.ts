@@ -80,28 +80,51 @@ export class TranscriberStack extends cdk.Stack {
     const powerToolsLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'PowertoolsLayer',
       `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:79`);
 
+    const commonLambdaProps = {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      layers: [powerToolsLayer],
+      timeout: cdk.Duration.minutes(14),  // large files can take a long time to process
+    }
+
     // *****************************************************************************************************************
     // Lambda Function to process uploaded files
     // https://docs.aws.amazon.com/cdk/api/v2/docs/aws-lambda-python-alpha-readme.html
     const processFileLambda = new PythonFunction(this, 'ProcessUploadedAudioFileLambda', {
       functionName: `${prefixedName}-process-uploaded-audio`,
-      runtime: lambda.Runtime.PYTHON_3_12,
 
       entry: path.join(__dirname, 'lambda/process_uploaded_audio/'),
       index: 'process_uploaded_audio.py',
       handler: 'handler',
 
-      timeout: cdk.Duration.minutes(14),  // large files can take a long time to process
-      reservedConcurrentExecutions: 100,
       environment: {
         JOB_INPUT_BUCKET: audioBucket.bucketName,
         TIMEZONE: TIMEZONE,
       },
-      layers: [powerToolsLayer]
+
+      ...commonLambdaProps,
     });
 
     uploadBucket.grantReadWrite(processFileLambda);
     audioBucket.grantReadWrite(processFileLambda);
+
+    // *****************************************************************************************************************
+    // Lambda Function to convert transcription to srt
+    const processTranscriptLambda = new PythonFunction(this, 'ProcessTranscriptLambda', {
+      functionName: `${prefixedName}-process-transcript`,
+
+      entry: path.join(__dirname, 'lambda/process_transcript/'),
+      index: 'process_transcript.py',
+      handler: 'handler',
+
+      environment: {
+        DESTINATION_BUCKET: textOutputBucket.bucketName,
+      },
+
+      ...commonLambdaProps,
+    });
+
+    transcriptionOutputBucket.grantRead(processTranscriptLambda);
+    textOutputBucket.grantReadWrite(processTranscriptLambda);
 
     // *****************************************************************************************************************
     // step function
@@ -112,7 +135,7 @@ export class TranscriberStack extends cdk.Stack {
     audioBucket.grantRead(transcribeRole);
     transcriptionOutputBucket.grantReadWrite(transcribeRole);
 
-    // Step Function Task: Lambda to Process File
+    // Step Function Task: Lambda to Process Audio
     const processFileTask = new tasks.LambdaInvoke(this, 'ProcessUploadedFile', {
       lambdaFunction: processFileLambda,
       outputPath: '$.Payload', // Extracts the payload from the Lambda's response
@@ -143,7 +166,7 @@ export class TranscriberStack extends cdk.Stack {
       iamResources: ['*'], // TODO check how this works
     });
 
-    // Wait Task - waits for 10 seconds
+    // Wait Task
     const waitTask = new stepfunctions.Wait(this, 'WaitForTranscription', {
       time: stepfunctions.WaitTime.duration(cdk.Duration.seconds(10)),
     });
@@ -159,16 +182,19 @@ export class TranscriberStack extends cdk.Stack {
       resultPath: '$.jobStatus', // Store the result in the 'jobStatus' field
     });
 
+    // Step Function Task: Lambda to Process Transcript
+    const processTranscriptTask = new tasks.LambdaInvoke(this, 'ProcessTranscript', {
+      lambdaFunction: processTranscriptLambda,
+    });
+
     // Choice State to determine job status
     const checkJobStatusChoice = new stepfunctions.Choice(this, 'Is Job Complete?');
-
-    // Define Success and Failure states
 
     // Define the logic to check job status
     checkJobStatusChoice
       .when(
         stepfunctions.Condition.stringEquals('$.jobStatus.TranscriptionJob.TranscriptionJobStatus', 'COMPLETED'),
-        new stepfunctions.Succeed(this, 'Job Success')
+        processTranscriptTask
       )
       .when(
         stepfunctions.Condition.stringEquals('$.jobStatus.TranscriptionJob.TranscriptionJobStatus', 'FAILED'),
