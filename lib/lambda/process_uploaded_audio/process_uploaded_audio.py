@@ -28,16 +28,19 @@ logger = Logger()
 
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
-    # Extract bucket name and object key from the event
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key']
-    event_datetime_str = event['Records'][0]['eventTime']
 
-    print(f"{event_datetime_str=}")
+    # Extract bucket name and object key from the event
+    bucket = event['detail']['bucket']['name']
+    key = event['detail']['object']['key']
+    event_datetime_str = event['time']
+
     event_datetime = datetime.fromisoformat(event_datetime_str)
 
     file_extension = Path(key).suffix.lower().strip('.')
-    print(f"{file_extension=}")
+    logger.info({
+        "event_datetime_str": event_datetime_str,
+        "file_extension": file_extension
+    })
 
     if file_extension not in SUPPORTED_FORMATS:
         raise ValueError(f"Unsupported file format: {file_extension}, supported formats: {SUPPORTED_FORMATS}")
@@ -67,7 +70,5 @@ def handler(event, context):
         "OutputKey": f"{new_s3_key}-transcription.json"
     }
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps(response)
-    }
+    logger.info({"response": response})
+    return response
