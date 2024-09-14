@@ -15,7 +15,6 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 
 
-
 const TIMEZONE = 'Europe/Zurich';
 
 export class TranscriberStack extends cdk.Stack {
@@ -69,6 +68,7 @@ export class TranscriberStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('states.amazonaws.com'),
     });
 
+    audioBucket.grantRead(transcribeRole);
     outputBucket.grantReadWrite(transcribeRole);
 
     // Step Function Task: Lambda to Process File
@@ -82,9 +82,7 @@ export class TranscriberStack extends cdk.Stack {
       service: 'transcribe',
       action: 'startTranscriptionJob',
       parameters: {
-        // TODO: take all field from the lambda output
-
-        // map lambda output to the parameters
+        // map lambda output to the parameters  // TODO: take all field from the lambda output instead
         TranscriptionJobName: stepfunctions.JsonPath.stringAt('$.TranscriptionJobName'),
         MediaFormat: stepfunctions.JsonPath.stringAt('$.MediaFormat'),
         Media: {
@@ -94,9 +92,9 @@ export class TranscriberStack extends cdk.Stack {
 
         // ----------------------------------------------
         // lambda-independent parameters
+
         // https://docs.aws.amazon.com/transcribe/latest/APIReference/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-IdentifyMultipleLanguages
-        IdentifyMultipleLanguages: true,
-        LanguageOptions: ['en-US', 'hu-HU'],
+        LanguageCode: 'en-US', // hu-HU is not supported for identify multiple languages
 
         // https://docs.aws.amazon.com/transcribe/latest/APIReference/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-OutputBucketName
         OutputBucketName: outputBucket.bucketName,
@@ -114,7 +112,7 @@ export class TranscriberStack extends cdk.Stack {
       service: 'transcribe',
       action: 'getTranscriptionJob',
       parameters: {
-        TranscriptionJobName: stepfunctions.JsonPath.stringAt('$.TranscriptionJobName'),
+        TranscriptionJobName: stepfunctions.JsonPath.stringAt('$.TranscriptionJob.TranscriptionJobName'),
       },
       iamResources: ['*'],
       resultPath: '$.jobStatus', // Store the result in the 'jobStatus' field
@@ -156,13 +154,11 @@ export class TranscriberStack extends cdk.Stack {
       ruleName: `${prefixedName}-onfileupload`,
       eventPattern: {
         source: ['aws.s3'],
+        detailType: ['Object Created'],
         detail: {
           bucket: {
             name: [uploadBucket.bucketName],
           },
-          eventName: [
-            "PutObject",
-          ],
         },
       },
       targets: [new targets.SfnStateMachine(stateMachine)],
