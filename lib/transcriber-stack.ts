@@ -13,6 +13,7 @@ import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
+import {PythonFunction} from '@aws-cdk/aws-lambda-python-alpha';
 
 
 const TIMEZONE = 'Europe/Zurich';
@@ -23,12 +24,32 @@ export class TranscriberStack extends cdk.Stack {
 
     const prefixedName = "transcriber-dev";
 
+    const shortS3LifecycleRuleSettings = {
+      lifecycleRules: [
+        {
+          expiration: cdk.Duration.days(7),
+          enabled: true,
+        }
+      ]
+    }
+
+    const longS3LifecycleRuleSettings = {
+      lifecycleRules: [
+        {
+          expiration: cdk.Duration.days(30),
+          enabled: true,
+        }
+      ]
+    }
+
     const uploadBucket = new s3.Bucket(this, 'UserUploadBucket', {
       bucketName: `${prefixedName}-${this.account}-user-upload`,
       eventBridgeEnabled: true,
 
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
+
+      ...shortS3LifecycleRuleSettings,
     });
 
     const audioBucket = new s3.Bucket(this, 'AudioInputBucket', {
@@ -36,10 +57,24 @@ export class TranscriberStack extends cdk.Stack {
 
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
+
+      ...shortS3LifecycleRuleSettings,
     });
 
-    const outputBucket = new s3.Bucket(this, 'TranscriptionOutputBucket', {
+    const transcriptionOutputBucket = new s3.Bucket(this, 'TranscriptionOutputBucket', {
       bucketName: `${prefixedName}-${this.account}-transcription-output`,
+
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+
+      ...shortS3LifecycleRuleSettings,
+    });
+
+    const textOutputBucket = new s3.Bucket(this, 'TextOutputBucket', {
+      bucketName: `${prefixedName}-${this.account}-text-output`,
+
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      ...longS3LifecycleRuleSettings,
     });
 
     const powerToolsLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'PowertoolsLayer',
@@ -47,11 +82,17 @@ export class TranscriberStack extends cdk.Stack {
 
     // *****************************************************************************************************************
     // Lambda Function to process uploaded files
-    const processFileLambda = new lambda.Function(this, 'ProcessUploadedAudioFileLambda', {
+    // https://docs.aws.amazon.com/cdk/api/v2/docs/aws-lambda-python-alpha-readme.html
+    const processFileLambda = new PythonFunction(this, 'ProcessUploadedAudioFileLambda', {
       functionName: `${prefixedName}-process-uploaded-audio`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda/process_uploaded_audio/')),
-      handler: 'process_uploaded_audio.handler',
+
+      entry: path.join(__dirname, 'lambda/process_uploaded_audio/'),
+      index: 'process_uploaded_audio.py',
+      handler: 'handler',
+
+      timeout: cdk.Duration.minutes(14),  // large files can take a long time to process
+      reservedConcurrentExecutions: 100,
       environment: {
         JOB_INPUT_BUCKET: audioBucket.bucketName,
         TIMEZONE: TIMEZONE,
@@ -69,7 +110,7 @@ export class TranscriberStack extends cdk.Stack {
     });
 
     audioBucket.grantRead(transcribeRole);
-    outputBucket.grantReadWrite(transcribeRole);
+    transcriptionOutputBucket.grantReadWrite(transcribeRole);
 
     // Step Function Task: Lambda to Process File
     const processFileTask = new tasks.LambdaInvoke(this, 'ProcessUploadedFile', {
@@ -97,7 +138,7 @@ export class TranscriberStack extends cdk.Stack {
         LanguageCode: 'en-US', // hu-HU is not supported for identify multiple languages
 
         // https://docs.aws.amazon.com/transcribe/latest/APIReference/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-OutputBucketName
-        OutputBucketName: outputBucket.bucketName,
+        OutputBucketName: transcriptionOutputBucket.bucketName,
       },
       iamResources: ['*'], // TODO check how this works
     });
