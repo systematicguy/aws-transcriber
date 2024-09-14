@@ -9,6 +9,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import boto3
+from aws_lambda_powertools.logging import Logger
 
 
 JOB_INPUT_BUCKET = os.getenv('JOB_INPUT_BUCKET')
@@ -22,6 +23,10 @@ TIMEZONE = os.getenv('TIMEZONE', 'UTC')
 timezone_preference = ZoneInfo(TIMEZONE)
 
 
+logger = Logger()
+
+
+@logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     # Extract bucket name and object key from the event
     bucket = event['Records'][0]['s3']['bucket']['name']
@@ -39,6 +44,7 @@ def handler(event, context):
 
     # Generate new key with suffix based on upload time in the desired timezone as per TZ
     datetime_suffix = event_datetime.astimezone(timezone_preference).strftime('%Y-%m-%d-%H-%M-%S')
+    # TODO sanitize the key to avoid any special characters
     new_s3_key = f"{Path(key).stem}-uploaded-{datetime_suffix}.{file_extension}"
 
     # Copy the file to the audio bucket with the new key

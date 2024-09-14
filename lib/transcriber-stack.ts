@@ -26,15 +26,25 @@ export class TranscriberStack extends cdk.Stack {
 
     const uploadBucket = new s3.Bucket(this, 'UserUploadBucket', {
       bucketName: `${prefixedName}-${this.account}-user-upload`,
+      eventBridgeEnabled: true,
+
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
     });
 
     const audioBucket = new s3.Bucket(this, 'AudioInputBucket', {
       bucketName: `${prefixedName}-${this.account}-audio-input`,
+
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
     });
 
     const outputBucket = new s3.Bucket(this, 'TranscriptionOutputBucket', {
       bucketName: `${prefixedName}-${this.account}-transcription-output`,
     });
+
+    const powerToolsLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'PowertoolsLayer',
+      `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:79`);
 
     // *****************************************************************************************************************
     // Lambda Function to process uploaded files
@@ -47,6 +57,7 @@ export class TranscriberStack extends cdk.Stack {
         JOB_INPUT_BUCKET: audioBucket.bucketName,
         TIMEZONE: TIMEZONE,
       },
+      layers: [powerToolsLayer]
     });
 
     uploadBucket.grantReadWrite(processFileLambda);
@@ -58,13 +69,6 @@ export class TranscriberStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('states.amazonaws.com'),
     });
 
-    transcribeRole.addToPolicy(new iam.PolicyStatement({
-      actions: [
-        'transcribe:StartTranscriptionJob',
-        'transcribe:GetTranscriptionJob'
-      ],
-      resources: ['*'],
-    }));
     outputBucket.grantReadWrite(transcribeRole);
 
     // Step Function Task: Lambda to Process File
@@ -100,10 +104,47 @@ export class TranscriberStack extends cdk.Stack {
       iamResources: ['*'], // TODO check how this works
     });
 
-    const taskChain = processFileTask
-      .next(startTranscriptionTask);
+    // Wait Task - waits for 10 seconds
+    const waitTask = new stepfunctions.Wait(this, 'WaitForTranscription', {
+      time: stepfunctions.WaitTime.duration(cdk.Duration.seconds(10)),
+    });
 
-    // Create the State Machine
+    // Task to check the status of the transcription job
+    const checkTranscriptionStatusTask = new tasks.CallAwsService(this, 'CheckTranscriptionStatus', {
+      service: 'transcribe',
+      action: 'getTranscriptionJob',
+      parameters: {
+        TranscriptionJobName: stepfunctions.JsonPath.stringAt('$.TranscriptionJobName'),
+      },
+      iamResources: ['*'],
+      resultPath: '$.jobStatus', // Store the result in the 'jobStatus' field
+    });
+
+    // Choice State to determine job status
+    const checkJobStatusChoice = new stepfunctions.Choice(this, 'Is Job Complete?');
+
+    // Define Success and Failure states
+
+    // Define the logic to check job status
+    checkJobStatusChoice
+      .when(
+        stepfunctions.Condition.stringEquals('$.jobStatus.TranscriptionJob.TranscriptionJobStatus', 'COMPLETED'),
+        new stepfunctions.Succeed(this, 'Job Success')
+      )
+      .when(
+        stepfunctions.Condition.stringEquals('$.jobStatus.TranscriptionJob.TranscriptionJobStatus', 'FAILED'),
+        new stepfunctions.Fail(this, 'Job Failed', {
+          cause: 'Transcription Job Failed',
+          error: 'JobStatus: FAILED',
+        })
+      )
+      .otherwise(waitTask.next(checkTranscriptionStatusTask)); // Loop back if the job is still in progress
+
+    const taskChain = processFileTask
+      .next(startTranscriptionTask)
+      .next(checkTranscriptionStatusTask)
+      .next(checkJobStatusChoice);
+
     const stateMachine = new stepfunctions.StateMachine(this, 'TranscriptionStateMachine', {
       stateMachineName: prefixedName,
       definitionBody: stepfunctions.DefinitionBody.fromChainable(taskChain),
@@ -112,13 +153,16 @@ export class TranscriberStack extends cdk.Stack {
 
     // EventBridge Rule to trigger the Step Function
     new events.Rule(this, 'OnFileUpload', {
+      ruleName: `${prefixedName}-onfileupload`,
       eventPattern: {
         source: ['aws.s3'],
-        detailType: ['Object Created'],
         detail: {
           bucket: {
             name: [uploadBucket.bucketName],
           },
+          eventName: [
+            "PutObject",
+          ],
         },
       },
       targets: [new targets.SfnStateMachine(stateMachine)],
