@@ -19,21 +19,21 @@ s3_paginator = s3.get_paginator('list_objects_v2')
 # inspiration taken from https://stackoverflow.com/a/76552544/429162
 
 
-def list_dir(bucket_name, *, prefix):
+def list_dir(bucket_name, *, prefix, exclude_zips=False):
     files = []
     pages = s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix)
     for page in pages:
         for obj in page['Contents']:
             files.append(obj['Key'])
 
-    if EXCLUDE_ZIPS:
+    if exclude_zips:
         files = [f for f in files if not f.lower().endswith(".zip")]
 
     return files
 
 
 def zip_folder_into_buffer(bucket_name, *, prefix):
-    files = list_dir(bucket_name, prefix=prefix)
+    files = list_dir(bucket_name, prefix=prefix, exclude_zips=EXCLUDE_ZIPS)
     zip_buffer = io.BytesIO()
     for key in files:
         print(f"Adding file {key}")
