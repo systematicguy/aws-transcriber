@@ -19,7 +19,6 @@ JOB_INPUT_BUCKET = os.getenv('JOB_INPUT_BUCKET')
 # Supported media formats for Amazon Transcribe
 SUPPORTED_FORMATS = ['mp3', 'mp4', 'wav', 'flac', 'ogg', 'amr', 'webm', 'm4a']
 FOLDER_SEPARATOR = "__"
-# TODO aac
 
 s3 = boto3.client('s3')
 
