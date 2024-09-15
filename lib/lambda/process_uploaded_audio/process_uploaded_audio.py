@@ -69,10 +69,10 @@ def handler(event, context):
         raise ValueError(f"Unsupported file format: {file_extension}, supported formats: {SUPPORTED_FORMATS}")
 
     # Generate new key with suffix based on upload time in the desired timezone as per TZ
-    datetime_suffix = event_datetime.astimezone(timezone_preference).strftime('%Y-%m-%d-%H-%M-%S')
+    datetime_suffix = event_datetime.astimezone(timezone_preference).strftime('%Y-%m-%d_%H-%M-%S')
 
     sanitized_path = Path(sanitized_key)
-    new_s3_key = f"{sanitized_path.parent}/{sanitized_path.stem}-uploaded{datetime_suffix}.{file_extension}"
+    new_s3_key = f"{sanitized_path}.uploaded-{datetime_suffix}.{file_extension}"  # this is more readable and searchable
 
     # Copy the file to the audio bucket with the new key
     s3.copy_object(
@@ -97,7 +97,7 @@ def handler(event, context):
             "MediaFileUri": f"s3://{JOB_INPUT_BUCKET}/{new_s3_key}",
         },
         "MediaFormat": file_extension,
-        "OutputKey": f"{new_s3_key}-transcription.json"
+        "OutputKey": f"{new_s3_key}.transcription.json"
     }
 
     logger.info({"response": response})

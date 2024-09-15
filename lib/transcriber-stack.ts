@@ -84,7 +84,8 @@ export class TranscriberStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_12,
       layers: [powerToolsLayer],
       timeout: cdk.Duration.minutes(14),  // large files can take a long time to process
-    }
+      memorySize: 1024,
+    };
 
     // *****************************************************************************************************************
     // Lambda Function to process uploaded files
@@ -125,6 +126,27 @@ export class TranscriberStack extends cdk.Stack {
 
     transcriptionOutputBucket.grantRead(processTranscriptLambda);
     textOutputBucket.grantReadWrite(processTranscriptLambda);
+
+    // *****************************************************************************************************************
+    // Lambda Function to compress s3 content as zip
+    const zipBucketLambda = new PythonFunction(this, 'ZipBucketLambda', {
+      ...commonLambdaProps,
+
+      functionName: `${prefixedName}-zip-bucket`,
+
+      entry: path.join(__dirname, 'lambda/zip_bucket_content/'),
+      index: 'zip_bucket_content.py',
+      handler: 'handler',
+
+      environment: {
+        BUCKET: textOutputBucket.bucketName,
+      },
+
+      memorySize: 3008,
+    });
+
+    textOutputBucket.grantReadWrite(zipBucketLambda);
+    transcriptionOutputBucket.grantReadWrite(zipBucketLambda);
 
     // *****************************************************************************************************************
     // step function
