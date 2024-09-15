@@ -5,12 +5,15 @@
 from pathlib import Path
 import re
 import os
+import json
 
 import boto3
 from unidecode import unidecode
 
 
 invalid_chars = re.compile(r"[^0-9a-zA-Z._-]+")  # + will match multiple adjacent invalid characters
+
+DRY_RUN = True
 
 LOCAL_FOLDER = os.getenv('LOCAL_FOLDER')
 UPLOAD_BUCKET = os.getenv('UPLOAD_BUCKET')
@@ -74,6 +77,7 @@ def upload_folder_to_s3(local_folder, bucket_name, s3_base_path=''):
 
     num_already_uploaded = 0
     num_processed = 0
+    skipped = []
 
     # Walk through all files in the specified local folder recursively
     for file_path in local_folder.rglob('*'):
@@ -83,7 +87,7 @@ def upload_folder_to_s3(local_folder, bucket_name, s3_base_path=''):
             print(f"# {num_processed}: Processing {file_path}")
 
             # Construct the S3 key, preserving folder structure
-            relative_path = file_path.relative_to(local_folder)
+            relative_path = file_path.relative_to(local_folder.parent)
             uploaded_key = (Path(s3_base_path) / relative_path).as_posix()  # Convert path to POSIX format for S3
 
             sanitized_key = sanitize_path(uploaded_key)
@@ -94,18 +98,23 @@ def upload_folder_to_s3(local_folder, bucket_name, s3_base_path=''):
 
             if Path(uploaded_key).suffix.lower().strip('.') not in SUPPORTED_FORMATS:
                 print(f" Skipping {file_path} as {uploaded_key} has an unsupported file extension")
+                skipped.append(file_path)
                 continue
 
             try:
                 # Upload the file to S3
-                print(f" Uploading src {file_path}")
+                size = file_path.stat().st_size
+                print(f" Uploading src {file_path} (size: {size})")
                 print(f" Uploading dst s3://{bucket_name}/{uploaded_key} ...")
-                s3_client.upload_file(str(file_path), bucket_name, uploaded_key)
+                if not DRY_RUN:
+                    s3_client.upload_file(str(file_path), bucket_name, uploaded_key)
 
             except Exception as e:
                 print(f" Error uploading {file_path}: {e}")
 
-    print(f"Processed {num_processed} files, {num_already_uploaded} already uploaded")
-
+    print("----------------------------------")
+    print("skipped:")
+    print(json.dumps(skipped, indent=2, default=str))
+    print(f"Processed {num_processed} files, {num_already_uploaded} already uploaded, {len(skipped)} skipped")
 
 upload_folder_to_s3(LOCAL_FOLDER, UPLOAD_BUCKET)
