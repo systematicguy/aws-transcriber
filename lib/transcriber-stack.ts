@@ -14,6 +14,7 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 import {PythonFunction} from '@aws-cdk/aws-lambda-python-alpha';
+import {RetentionDays} from "aws-cdk-lib/aws-logs";
 
 
 const TIMEZONE = 'Europe/Zurich';
@@ -85,12 +86,16 @@ export class TranscriberStack extends cdk.Stack {
       layers: [powerToolsLayer],
       timeout: cdk.Duration.minutes(14),  // large files can take a long time to process
       memorySize: 1024,
+
+      logRetention: RetentionDays.THREE_MONTHS,
     };
 
     // *****************************************************************************************************************
     // Lambda Function to process uploaded files
     // https://docs.aws.amazon.com/cdk/api/v2/docs/aws-lambda-python-alpha-readme.html
     const processFileLambda = new PythonFunction(this, 'ProcessUploadedAudioFileLambda', {
+      ...commonLambdaProps,
+
       functionName: `${prefixedName}-process-uploaded-audio`,
 
       entry: path.join(__dirname, 'lambda/process_uploaded_audio/'),
@@ -101,8 +106,6 @@ export class TranscriberStack extends cdk.Stack {
         JOB_INPUT_BUCKET: audioBucket.bucketName,
         TIMEZONE: TIMEZONE,
       },
-
-      ...commonLambdaProps,
     });
 
     uploadBucket.grantReadWrite(processFileLambda);
@@ -111,6 +114,8 @@ export class TranscriberStack extends cdk.Stack {
     // *****************************************************************************************************************
     // Lambda Function to convert transcription to srt
     const processTranscriptLambda = new PythonFunction(this, 'ProcessTranscriptLambda', {
+      ...commonLambdaProps,
+
       functionName: `${prefixedName}-process-transcript`,
 
       entry: path.join(__dirname, 'lambda/process_transcript/'),
@@ -120,8 +125,6 @@ export class TranscriberStack extends cdk.Stack {
       environment: {
         DESTINATION_BUCKET: textOutputBucket.bucketName,
       },
-
-      ...commonLambdaProps,
     });
 
     transcriptionOutputBucket.grantRead(processTranscriptLambda);
