@@ -1,5 +1,8 @@
 # Amazon Transcribe Demo CDK TypeScript project
 
+## Architecture
+![Architecture](architecture.drawio.svg)
+
 ## Setup
 
 copy [config/account.template.ts](config/account.template.ts) to `config/account.ts` and adjust the values.
