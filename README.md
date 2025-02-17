@@ -65,5 +65,5 @@ You can also use the `transcriber-dev-zip-bucket` lambda with a dummy event to z
 
 ## Prices
 I have transcribed 1800 files worth 96 GB of audio (uploading that 100GB to S3, yes).
-The majority of the costs are the transcription costs, 25000 minutes cost me cca. 400 USD in `eu-central-1`.
+The majority of the costs are the transcription costs, 50000 minutes cost me cca. 900 USD in `eu-central-1`.
 The 100 GB was single-digit Dollars.
